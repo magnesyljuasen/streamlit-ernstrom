@@ -26,11 +26,9 @@ class CalculateCosts:
         with st.form(key="myform", border=False):
 #            c1, c2, c3 = st.columns(3)
 #            with c1:
-            nettleie_provider = st.selectbox("Nettleieselskap", options=["Tensio", "Glitre", "Tensio fremtidig", "Ingen nettleie"])
+            nettleie_provider = st.selectbox("Nettleieselskap", options=["Tensio", "Tensio fremtidig", "Ingen nettleie"])
             if nettleie_provider == "Tensio":
                 filename = "src/Prissatser_nettleie_Tensio.xlsx"
-            elif nettleie_provider == "Glitre":
-                filename = "src/Prissatser_nettleie_Glitre.xlsx"
             elif nettleie_provider == "Tensio fremtidig":
                 filename = "src/Prissatser_nettleie_Tensio_fremtidig.xlsx"
             elif nettleie_provider == "Ingen nettleie":
