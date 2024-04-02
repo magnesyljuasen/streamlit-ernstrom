@@ -41,10 +41,10 @@ def get_winter_summer_parameters(array, mode = 'måned'):
         winter_sum = sum(array[i] for i in [0, 1, 2, 11, 10, 9])
         summer_sum = sum(array[i] for i in range(3, 9))
     else:
-        summer_sum = sum(array[i] for i in range(1415, 6550))
-        winter_sum = sum(array[i] for i in range(0, 1415)) + sum(array[i] for i in range(6551, 8760))
-        winter_max = max(max(array[i] for i in range(0, 1415)), max(array[i] for i in range(6551, 8760)))
-        summer_max = max(array[i] for i in range(1415, 6550))
+        summer_sum = sum(array[i] for i in range(1415, 6910))
+        winter_sum = sum(array[i] for i in range(0, 1415)) + sum(array[i] for i in range(6910, 8760))
+        winter_max = max(max(array[i] for i in range(0, 1415)), max(array[i] for i in range(6910, 8760)))
+        summer_max = max(array[i] for i in range(1415, 6910))
         winter_max = int(winter_max)
         summer_max = int(summer_max)
     return round(int(winter_sum),-1), round(int(summer_sum),-1), winter_max, summer_max
