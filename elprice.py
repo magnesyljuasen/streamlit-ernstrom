@@ -49,7 +49,8 @@ class CalculateCosts:
                 self.mva = True
             else:
                 self.mva = False
-            self.clicked = st.form_submit_button(label='Start beregning')
+            self.clicked = st.form_submit_button(label='Oppdater beregning')
+        self.clicked = True
                 
             
         self.skuddaar = False

@@ -35,6 +35,21 @@ def hour_to_month(hourly_array, aggregation='sum'):
                 temp_value = 0 if aggregation in ['sum', 'max'] else []
     return result_array
 
+def get_winter_summer_parameters(array, mode = 'måned'):
+    summer_max, winter_max = 0, 0
+    if mode == 'måned':
+        winter_sum = sum(array[i] for i in [0, 1, 2, 11, 10, 9])
+        summer_sum = sum(array[i] for i in range(3, 9))
+    else:
+        summer_sum = sum(array[i] for i in range(1415, 6550))
+        winter_sum = sum(array[i] for i in range(0, 1415)) + sum(array[i] for i in range(6551, 8760))
+        winter_max = max(max(array[i] for i in range(0, 1415)), max(array[i] for i in range(6551, 8760)))
+        summer_max = max(array[i] for i in range(1415, 6550))
+        winter_max = int(winter_max)
+        summer_max = int(summer_max)
+    return round(int(winter_sum),-1), round(int(summer_sum),-1), winter_max, summer_max
+
+
 def conditional_sum(array, mode = 'above'):
     new_array = []
     if mode == 'above':
@@ -57,6 +72,10 @@ def read_df(sheet_name="Sheet1"):
     return df
 
 def show_simple_plot(df, name, color='#1d3c34', ymin=0, ymax=1000, mode='hourly', type='positive'):
+    if type == 'positive':
+        height = 200
+    else:
+        height = 150
     array = df[name].to_numpy()
     if mode == 'hourly':
         fig = go.Figure()
@@ -67,7 +86,7 @@ def show_simple_plot(df, name, color='#1d3c34', ymin=0, ymax=1000, mode='hourly'
             yaxis_range=[ymin, ymax],
             margin=dict(l=10, r=10, t=0, b=0),
             yaxis_ticksuffix=" kW",
-            height=200,
+            height=height,
             xaxis = dict(
                 tickmode = 'array', 
                 tickvals = [0, 24 * (31), 24 * (31 + 28), 24 * (31 + 28 + 31), 24 * (31 + 28 + 31 + 30), 24 * (31 + 28 + 31 + 30 + 31), 24 * (31 + 28 + 31 + 30 + 31 + 30), 24 * (31 + 28 + 31 + 30 + 31 + 30 + 31), 24 * (31 + 28 + 31 + 30 + 31 + 30 + 31 + 31), 24 * (31 + 28 + 31 + 30 + 31 + 30 + 31 + 31 + 30), 24 * (31 + 28 + 31 + 30 + 31 + 30 + 31 + 31 + 30 + 31), 24 * (31 + 28 + 31 + 30 + 31 + 30 + 31 + 31 + 30 + 31 + 30), 24 * (31 + 28 + 31 + 30 + 31 + 30 + 31 + 31 + 30 + 31 + 30 + 31)], 
@@ -87,18 +106,34 @@ def show_simple_plot(df, name, color='#1d3c34', ymin=0, ymax=1000, mode='hourly'
             margin=dict(l=10, r=10, t=0, b=0),
             yaxis_ticksuffix=" kWh",
             separators="* .*",
-            height=200,)
+            height=height,)
         st.plotly_chart(fig, use_container_width=True, config = {'displayModeBar': False, 'staticPlot': True})
     above_sum = conditional_sum(array=array, mode='above')
     below_sum = -conditional_sum(array=array, mode='below')
     if type == 'positive':
-        st.metric(label="Kjøpt elektrisk energi", value=f"{above_sum:,} kWh".replace(",", " "))
+        st.metric(label="Kjøpt strøm fra strømnettet", value=f"{above_sum:,} kWh".replace(",", " "))
+        winter_sum, summer_sum, winter_max, summer_max = get_winter_summer_parameters(array = array, mode = mode)
+        c1, c2 = st.columns(2)
+        with c1:
+            st.caption("Om vinteren")
+            st.metric(label="Vinter", value=f"{winter_sum:,} kWh".replace(",", " "), label_visibility="collapsed")
+            if winter_max > 0:
+                st.metric(label="Vintereffekt", value=f"{winter_max:,} kW".replace(",", " "), label_visibility="collapsed")
+        with c2:
+            st.caption("Om sommeren")
+            st.metric(label="Sommer", value=f"{summer_sum:,} kWh".replace(",", " "), label_visibility="collapsed")
+            if summer_max > 0:
+                st.metric(label="Sommer", value=f"{summer_max:,} kW".replace(",", " "), label_visibility="collapsed")       
     else:
-        st.metric(label="Overskudd solstrømproduksjon", value=f"{below_sum:,} kWh".replace(",", " "))
+        st.metric(label="Overskudd solstrømproduksjon", value=f"{below_sum:,} kWh".replace(",", " "), label_visibility="collapsed")
     #st.metric(label="Balanse", value=f"{above_sum - below_sum:,} kWh".replace(",", " "))
     return fig
 
-def show_costs_plot(calculate_costs_object, df, ymin=None, ymax=None, mode='hourly', type='positive', nettleie_mode=True):  
+def show_costs_plot(calculate_costs_object, df, ymin=None, ymax=None, mode='hourly', type='positive', nettleie_mode=True):
+    if type == 'positive':
+        height = 200
+    else:
+        height = 150
     calculate_costs_object.spotpris()
     calculate_costs_object.ekstra_nettleie_storre_naring()
     calculate_costs_object.hele_nettleie()
@@ -143,7 +178,7 @@ def show_costs_plot(calculate_costs_object, df, ymin=None, ymax=None, mode='hour
                 title=None,
                 #showgrid=True
                 ),
-            height=200)
+            height=height)
         st.plotly_chart(fig, use_container_width=True, config = {'displayModeBar': False, 'staticPlot': True})
     else:
         months = ['jan', 'feb', 'mar', 'apr', 'mai', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'des']
@@ -160,7 +195,7 @@ def show_costs_plot(calculate_costs_object, df, ymin=None, ymax=None, mode='hour
             separators="* .*",
             yaxis_range=[ymin, ymax],
             margin=dict(l=10, r=10, t=0, b=0),
-            height=200)
+            height=height)
         st.plotly_chart(fig, use_container_width=True, config = {'displayModeBar': False, 'staticPlot': True})
     if nettleie_mode == True:
         total_array = df['Nettleie'] + df['Spotpris']
@@ -215,54 +250,56 @@ ymax_monthly = np.max(hour_to_month(df['Elkjel'].to_numpy())) * 1.1
 ymin_hourly = np.min(df2['Energibrønner']) * 1.1
 ymin_monthly = np.min(hour_to_month(df2['Energibrønner'].to_numpy())) * 1.1
 
-c1, c2, c3 = st.columns(3)
-with c1:
-    name = 'Elkjel'
-    color = '#1d3c34'
-    st.caption("Alt 1)")
-    st.write(f"**Elkjel og sol**")
-    if mode == 'hourly':
-        show_simple_plot(df, name, color, ymin=0, ymax=ymax_hourly, mode=mode)
+with st.expander("Energi og effekt"):
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        name = 'Elkjel'
+        color = '#1d3c34'
+        st.caption("Alt 1)")
+        st.write(f"**Elkjel og solceller**")
+        if mode == 'hourly':
+            show_simple_plot(df, name, color, ymin=0, ymax=ymax_hourly, mode=mode)
+            st.markdown("---")
+            show_simple_plot(df2, name, color, ymin=ymin_hourly, ymax=0, mode=mode, type='negative')
+        else:
+            show_simple_plot(df, name, color, ymin=0, ymax=ymax_monthly, mode=mode)
+            st.markdown("---")
+            show_simple_plot(df2, name, color, ymin=ymin_monthly, ymax=0, mode=mode, type='negative')
         st.markdown("---")
-        show_simple_plot(df2, name, color, ymin=ymin_hourly, ymax=0, mode=mode, type='negative')
-    else:
-        show_simple_plot(df, name, color, ymin=0, ymax=ymax_monthly, mode=mode)
+    with c2:
+        st.caption("Alt 2)")
+        st.write(f"**Energibrønner og solceller**")
+        name = 'Energibrønner'
+        color = '#b7dc8f'
+        if mode == 'hourly':
+            show_simple_plot(df, name, color, ymin=0, ymax=ymax_hourly, mode=mode)
+            st.markdown("---")
+            show_simple_plot(df2, name, color, ymin=ymin_hourly, ymax=0, mode=mode, type='negative')
+        else:
+            show_simple_plot(df, name, color, ymin=0, ymax=ymax_monthly, mode=mode)
+            st.markdown("---")
+            show_simple_plot(df2, name, color, ymin=ymin_monthly, ymax=0, mode=mode, type='negative')
         st.markdown("---")
-        show_simple_plot(df2, name, color, ymin=ymin_monthly, ymax=0, mode=mode, type='negative')
-    st.markdown("---")
-with c2:
-    st.caption("Alt 2)")
-    st.write(f"**Energibrønner og sol**")
-    name = 'Energibrønner'
-    color = '#b7dc8f'
-    if mode == 'hourly':
-        show_simple_plot(df, name, color, ymin=0, ymax=ymax_hourly, mode=mode)
+    with c3:
+        st.caption("Alt 3)")
+        st.write(f"**GeoTermos og solceller**")
+        #st.caption("Varme fra tørrkjøler eller PVT")
+        name = 'Termos og sol'
+        color = '#48a23f'
+        if mode == 'hourly':
+            show_simple_plot(df, name, color, ymin=0, ymax=ymax_hourly, mode=mode)
+            st.markdown("---")
+            show_simple_plot(df2, name, color, ymin=-ymax_hourly, ymax=0, mode=mode, type='negative')
+        else:
+            show_simple_plot(df, name, color, ymin=0, ymax=ymax_monthly, mode=mode)
+            st.markdown("---")
+            show_simple_plot(df2, name, color, ymin=ymin_monthly, ymax=0, mode=mode, type='negative')
         st.markdown("---")
-        show_simple_plot(df2, name, color, ymin=ymin_hourly, ymax=0, mode=mode, type='negative')
-    else:
-        show_simple_plot(df, name, color, ymin=0, ymax=ymax_monthly, mode=mode)
-        st.markdown("---")
-        show_simple_plot(df2, name, color, ymin=ymin_monthly, ymax=0, mode=mode, type='negative')
-    st.markdown("---")
-with c3:
-    st.caption("Alt 3)")
-    st.write(f"**Termos og sol**")
-    #st.caption("Varme fra tørrkjøler eller PVT")
-    name = 'Termos og sol'
-    color = '#48a23f'
-    if mode == 'hourly':
-        show_simple_plot(df, name, color, ymin=0, ymax=ymax_hourly, mode=mode)
-        st.markdown("---")
-        show_simple_plot(df2, name, color, ymin=-ymax_hourly, ymax=0, mode=mode, type='negative')
-    else:
-        show_simple_plot(df, name, color, ymin=0, ymax=ymax_monthly, mode=mode)
-        st.markdown("---")
-        show_simple_plot(df2, name, color, ymin=ymin_monthly, ymax=0, mode=mode, type='negative')
-    st.markdown("---")
-#######################################
-#######################################
-
-if calculate_costs_object.clicked:        
+    #######################################
+    #######################################
+        
+if calculate_costs_object.clicked:
+    c1, c2, c3 = st.columns(3)        
     with c1:
         name = 'Elkjel'
         color = '#1d3c34'
