@@ -47,7 +47,7 @@ def get_winter_summer_parameters(array, mode = 'måned'):
         summer_max = max(array[i] for i in range(1415, 6910))
         winter_max = int(winter_max)
         summer_max = int(summer_max)
-    return round(int(winter_sum),-1), round(int(summer_sum),-1), winter_max, summer_max
+    return int(round((winter_sum),0)), int(round((summer_sum),0)), winter_max, summer_max
 
 
 def conditional_sum(array, mode = 'above'):
@@ -64,14 +64,14 @@ def conditional_sum(array, mode = 'above'):
                 new_array.append(value)
             else:
                 new_array.append(0)
-    return round(int(sum(new_array)),-1)
+    return int(round(sum(new_array),0))
 
 st.cache_resource(show_spinner=False)
 def read_df(sheet_name="Sheet1"):
     df = pd.read_excel("src/GeoTermosEksempel.xlsx", sheet_name=sheet_name)
     return df
 
-def show_simple_plot(df, name, color='#1d3c34', ymin=0, ymax=1000, mode='hourly', type='positive'):
+def show_simple_plot(df, name, color='#1d3c34', ymin=0, ymax=1000, mode='hourly', type='positive', unit='kWh'):
     if type == 'positive':
         height = 200
     else:
@@ -85,7 +85,7 @@ def show_simple_plot(df, name, color='#1d3c34', ymin=0, ymax=1000, mode='hourly'
             yaxis=dict(tickformat=',d'),
             yaxis_range=[ymin, ymax],
             margin=dict(l=10, r=10, t=0, b=0),
-            yaxis_ticksuffix=" kW",
+            yaxis_ticksuffix=f" {unit[0:2]}",
             height=height,
             xaxis = dict(
                 tickmode = 'array', 
@@ -104,28 +104,32 @@ def show_simple_plot(df, name, color='#1d3c34', ymin=0, ymax=1000, mode='hourly'
             yaxis=dict(tickformat=',d'),
             yaxis_range=[ymin, ymax],
             margin=dict(l=10, r=10, t=0, b=0),
-            yaxis_ticksuffix=" kWh",
+            yaxis_ticksuffix=f" {unit}",
             separators="* .*",
             height=height,)
         st.plotly_chart(fig, use_container_width=True, config = {'displayModeBar': False, 'staticPlot': True})
     above_sum = conditional_sum(array=array, mode='above')
     below_sum = -conditional_sum(array=array, mode='below')
+    if unit == 'kWh':
+        label = 'Kjøpt strøm fra strømnettet'
+    else:
+        label = 'Utslipp med strøm (kg CO₂-ekv)'
     if type == 'positive':
-        st.metric(label="Kjøpt strøm fra strømnettet", value=f"{above_sum:,} kWh".replace(",", " "))
+        st.metric(label=label, value=f"{above_sum:,} {unit}".replace(",", " "))
         winter_sum, summer_sum, winter_max, summer_max = get_winter_summer_parameters(array = array, mode = mode)
         c1, c2 = st.columns(2)
         with c1:
             st.caption("Om vinteren")
-            st.metric(label="Vinter", value=f"{winter_sum:,} kWh".replace(",", " "), label_visibility="collapsed")
-            if winter_max > 0:
-                st.metric(label="Vintereffekt", value=f"{winter_max:,} kW".replace(",", " "), label_visibility="collapsed")
+            st.metric(label="Vinter", value=f"{winter_sum:,} {unit}".replace(",", " "), label_visibility="collapsed")
+            if winter_max > 0 and unit != 'kg CO₂':
+                st.metric(label="Vintereffekt", value=f"{winter_max:,} {unit[0:2]}".replace(",", " "), label_visibility="collapsed")
         with c2:
             st.caption("Om sommeren")
-            st.metric(label="Sommer", value=f"{summer_sum:,} kWh".replace(",", " "), label_visibility="collapsed")
-            if summer_max > 0:
-                st.metric(label="Sommer", value=f"{summer_max:,} kW".replace(",", " "), label_visibility="collapsed")       
+            st.metric(label="Sommer", value=f"{summer_sum:,} {unit}".replace(",", " "), label_visibility="collapsed")
+            if summer_max > 0 and unit != 'kg CO₂':
+                st.metric(label="Sommer", value=f"{summer_max:,} {unit[0:2]}".replace(",", " "), label_visibility="collapsed")       
     else:
-        st.metric(label="Overskudd solstrømproduksjon", value=f"{below_sum:,} kWh".replace(",", " "), label_visibility="collapsed")
+        st.metric(label="Overskudd solstrømproduksjon", value=f"{below_sum:,} {unit}".replace(",", " "), label_visibility="collapsed")
     #st.metric(label="Balanse", value=f"{above_sum - below_sum:,} kWh".replace(",", " "))
     return fig
 
@@ -237,6 +241,7 @@ with st.sidebar:
         mode='måned'
     else:
         mode='hourly'
+    selected_co2 = st.selectbox("CO₂-ekv", options=["Tyskland", "Sverige", "Norge"])
     calculate_costs_object.streamlit_input()
 calculate_costs_object.bestem_prissatser()
 calculate_costs_object.dager_i_hver_mnd()
@@ -295,6 +300,70 @@ with st.expander("Energi og effekt"):
             st.markdown("---")
             show_simple_plot(df2, name, color, ymin=ymin_monthly, ymax=0, mode=mode, type='negative')
         st.markdown("---")
+
+
+#######################################
+#######################################
+df_co2 = df.copy()
+df2_co2 = df2.copy()
+df_co2_imported = pd.read_excel('src/CO2.xlsx')
+scaling = 1000 # kg
+co2_array = np.array(list(df_co2_imported[selected_co2]))
+df_co2 = df_co2.apply(lambda row: row * co2_array[row.name]/scaling, axis=1) 
+df2_co2 = df2_co2.apply(lambda row: row * co2_array[row.name]/scaling, axis=1)
+ymax_hourly_co2 = df_co2['Elkjel'].max() * 1.1
+ymax_monthly_co2 = np.max(hour_to_month(df_co2['Elkjel'].to_numpy())) * 1.1
+ymin_hourly_co2 = np.min(df2_co2['Energibrønner']) * 1.1
+ymin_monthly_co2 = np.min(hour_to_month(df2_co2['Energibrønner'].to_numpy())) * 1.1
+
+with st.expander("CO₂ utslipp per år med bruk av strøm", expanded=False):
+    st.caption(f"Forutsetning: CO₂ utslipp med strøm fra {selected_co2}.")
+    st.line_chart(df_co2_imported[selected_co2], height=150, use_container_width=True)
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        name = 'Elkjel'
+        color = '#1d3c34'
+        st.caption("Alt 1)")
+        st.write(f"**Elkjel og solceller**")
+        if mode == 'hourly':
+            show_simple_plot(df_co2, name, color, ymin=0, ymax=ymax_hourly_co2, mode=mode, unit="kg CO₂")
+            st.markdown("---")
+            show_simple_plot(df2_co2, name, color, ymin=ymin_hourly_co2, ymax=0, mode=mode, type='negative', unit="kg CO₂")
+        else:
+            show_simple_plot(df_co2, name, color, ymin=0, ymax=ymax_monthly_co2, mode=mode, unit="kg CO₂")
+            st.markdown("---")
+            show_simple_plot(df2_co2, name, color, ymin=ymin_monthly_co2, ymax=0, mode=mode, type='negative', unit="kg CO₂")
+        st.markdown("---")
+    with c2:
+        st.caption("Alt 2)")
+        st.write(f"**Energibrønner og solceller**")
+        name = 'Energibrønner'
+        color = '#b7dc8f'
+        if mode == 'hourly':
+            show_simple_plot(df_co2, name, color, ymin=0, ymax=ymax_hourly_co2, mode=mode, unit="kg CO₂")
+            st.markdown("---")
+            show_simple_plot(df2_co2, name, color, ymin=ymin_hourly_co2, ymax=0, mode=mode, type='negative', unit="kg CO₂")
+        else:
+            show_simple_plot(df_co2, name, color, ymin=0, ymax=ymax_monthly_co2, mode=mode, unit="kg CO₂")
+            st.markdown("---")
+            show_simple_plot(df2_co2, name, color, ymin=ymin_monthly_co2, ymax=0, mode=mode, type='negative', unit="kg CO₂")
+        st.markdown("---")
+    with c3:
+        st.caption("Alt 3)")
+        st.write(f"**GeoTermos og solceller**")
+        #st.caption("Varme fra tørrkjøler eller PVT")
+        name = 'Termos og sol'
+        color = '#48a23f'
+        if mode == 'hourly':
+            show_simple_plot(df_co2, name, color, ymin=0, ymax=ymax_hourly_co2, mode=mode, unit="kg CO₂")
+            st.markdown("---")
+            show_simple_plot(df2_co2, name, color, ymin=-ymax_hourly_co2, ymax=0, mode=mode, type='negative', unit="kg CO₂")
+        else:
+            show_simple_plot(df_co2, name, color, ymin=0, ymax=ymax_monthly_co2, mode=mode, unit="kg CO₂")
+            st.markdown("---")
+            show_simple_plot(df2_co2, name, color, ymin=ymin_monthly_co2, ymax=0, mode=mode, type='negative', unit="kg CO₂")
+        st.markdown("---")
+
     #######################################
     #######################################
         
