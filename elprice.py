@@ -26,6 +26,12 @@ class CalculateCosts:
         with st.form(key="myform", border=False):
 #            c1, c2, c3 = st.columns(3)
 #            with c1:
+            selected_mode_charging_in_night = st.selectbox("Optimalisere GeoTermos for lading om nettene?", options = ['Ja', 'Nei'])
+            if selected_mode_charging_in_night == 'Ja':
+                self.selected_mode_charging_in_night = True
+            else:
+                self.selected_mode_charging_in_night = False
+            self.selected_co2 = st.selectbox("CO₂-ekv", options=["Tyskland", "Sverige", "Norge"])
             nettleie_provider = st.selectbox("Nettleieselskap", options=["Tensio", "Tensio fremtidig", "Ingen nettleie"])
             if nettleie_provider == "Tensio":
                 filename = "src/Prissatser_nettleie_Tensio.xlsx"

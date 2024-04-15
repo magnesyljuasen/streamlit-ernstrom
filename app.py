@@ -241,7 +241,6 @@ with st.sidebar:
         mode='måned'
     else:
         mode='hourly'
-    selected_co2 = st.selectbox("CO₂-ekv", options=["Tyskland", "Sverige", "Norge"])
     calculate_costs_object.streamlit_input()
 calculate_costs_object.bestem_prissatser()
 calculate_costs_object.dager_i_hver_mnd()
@@ -289,7 +288,10 @@ with st.expander("Energi og effekt"):
         st.caption("Alt 3)")
         st.write(f"**GeoTermos og solceller**")
         #st.caption("Varme fra tørrkjøler eller PVT")
-        name = 'Termos og sol'
+        if calculate_costs_object.selected_mode_charging_in_night:
+            name = 'Termos og sol med lading om natten'
+        else:
+            name = 'Termos og sol'
         color = '#48a23f'
         if mode == 'hourly':
             show_simple_plot(df, name, color, ymin=0, ymax=ymax_hourly, mode=mode)
@@ -308,7 +310,7 @@ df_co2 = df.copy()
 df2_co2 = df2.copy()
 df_co2_imported = pd.read_excel('src/CO2.xlsx')
 scaling = 1000 # kg
-co2_array = np.array(list(df_co2_imported[selected_co2]))
+co2_array = np.array(list(df_co2_imported[calculate_costs_object.selected_co2]))
 df_co2 = df_co2.apply(lambda row: row * co2_array[row.name]/scaling, axis=1) 
 df2_co2 = df2_co2.apply(lambda row: row * co2_array[row.name]/scaling, axis=1)
 ymax_hourly_co2 = df_co2['Elkjel'].max() * 1.1
@@ -317,8 +319,8 @@ ymin_hourly_co2 = np.min(df2_co2['Energibrønner']) * 1.1
 ymin_monthly_co2 = np.min(hour_to_month(df2_co2['Energibrønner'].to_numpy())) * 1.1
 
 with st.expander("CO₂ utslipp per år med bruk av strøm", expanded=False):
-    st.caption(f"Forutsetning: CO₂ utslipp med strøm fra {selected_co2}.")
-    st.line_chart(df_co2_imported[selected_co2], height=150, use_container_width=True)
+    st.caption(f"Forutsetning: CO₂ utslipp med strøm fra {calculate_costs_object.selected_co2}.")
+    st.line_chart(df_co2_imported[calculate_costs_object.selected_co2], height=150, use_container_width=True)
     c1, c2, c3 = st.columns(3)
     with c1:
         name = 'Elkjel'
@@ -352,7 +354,10 @@ with st.expander("CO₂ utslipp per år med bruk av strøm", expanded=False):
         st.caption("Alt 3)")
         st.write(f"**GeoTermos og solceller**")
         #st.caption("Varme fra tørrkjøler eller PVT")
-        name = 'Termos og sol'
+        if calculate_costs_object.selected_mode_charging_in_night:
+            name = 'Termos og sol med lading om natten'
+        else:
+            name = 'Termos og sol'
         color = '#48a23f'
         if mode == 'hourly':
             show_simple_plot(df_co2, name, color, ymin=0, ymax=ymax_hourly_co2, mode=mode, unit="kg CO₂")
