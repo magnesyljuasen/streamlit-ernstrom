@@ -26,7 +26,7 @@ class CalculateCosts:
         with st.form(key="myform", border=False):
 #            c1, c2, c3 = st.columns(3)
 #            with c1:
-            selected_mode_charging_in_night = st.selectbox("Optimalisere GeoTermos for lading om nettene?", options = ['Ja', 'Nei'])
+            selected_mode_charging_in_night = st.selectbox("Optimalisere GeoTermos - kjøre varmepumpa når sola skinner", options = ['Ja', 'Nei'])
             if selected_mode_charging_in_night == 'Ja':
                 self.selected_mode_charging_in_night = True
             else:
