@@ -71,7 +71,7 @@ def read_df(sheet_name="Sheet1"):
     df = pd.read_excel("src/GeoTermosEksempel.xlsx", sheet_name=sheet_name)
     return df
 
-def show_simple_plot(df, name, color='#1d3c34', ymin=0, ymax=1000, mode='hourly', type='positive', unit='kWh'):
+def show_simple_plot(df, name, color='#1d3c34', ymin=0, ymax=1000, mode='hourly', type='positive', unit='kWh', hide_label = 'visible'):
     if type == 'positive':
         height = 200
     else:
@@ -112,10 +112,12 @@ def show_simple_plot(df, name, color='#1d3c34', ymin=0, ymax=1000, mode='hourly'
     below_sum = -conditional_sum(array=array, mode='below')
     if unit == 'kWh':
         label = 'Kjøpt strøm fra strømnettet'
+    elif unit == 'Ingen':
+        label = ''
     else:
         label = 'Utslipp med strøm (kg CO₂-ekv)'
     if type == 'positive':
-        st.metric(label=label, value=f"{above_sum:,} {unit}".replace(",", " "))
+        st.metric(label=label, value=f"{above_sum:,} {unit}".replace(",", " "), label_visibility=hide_label)
         winter_sum, summer_sum, winter_max, summer_max = get_winter_summer_parameters(array = array, mode = mode)
         c1, c2 = st.columns(2)
         with c1:
@@ -231,6 +233,7 @@ df = read_df()
 df_positive = df.copy()
 df_positive[df_positive < 0] = 0
 df2 = read_df(sheet_name="Sheet2")
+df3 = read_df(sheet_name="Sheet3")
 #######################################
 #######################################
 calculate_costs_object = CalculateCosts(energy_demand = df['Elkjel'])
@@ -247,6 +250,49 @@ calculate_costs_object.dager_i_hver_mnd()
 calculate_costs_object.energiledd()
 calculate_costs_object.kapasitetsledd()
 calculate_costs_object.offentlige_avgifter()
+
+#######################################
+#######################################
+ymax_hourly = df3['Totalt'].max() * 1.1
+ymax_monthly = np.max(hour_to_month(df3['Totalt'].to_numpy())) * 1.1
+ymin_hourly = 0
+ymin_monthly = 0
+
+with st.expander("Energi- og effektbehov til bygget", expanded=True):
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        name = 'Elektrisk'
+        color = '#367061'
+        st.write(f"**Elspesifikt behov**")
+        if mode == 'hourly':
+            show_simple_plot(df3, name, color, ymin=0, ymax=ymax_hourly, mode=mode, hide_label='collapsed')
+        else:
+            show_simple_plot(df3, name, color, ymin=0, ymax=ymax_monthly, mode=mode, hide_label='collapsed')
+    with c2:
+        st.write(f"**Romoppvarmingsbehov**")
+        name = 'Romoppvarming'
+        color = '#367061'
+        if mode == 'hourly':
+            show_simple_plot(df3, name, color, ymin=0, ymax=ymax_hourly, mode=mode, hide_label='collapsed')
+        else:
+            show_simple_plot(df3, name, color, ymin=0, ymax=ymax_monthly, mode=mode, hide_label='collapsed')
+    with c3:
+        st.write(f"**Tappevannsbehov**")
+        name = 'Tappevann'
+        color = '#367061'
+        if mode == 'hourly':
+            show_simple_plot(df3, name, color, ymin=0, ymax=ymax_hourly, mode=mode, hide_label='collapsed')
+        else:
+            show_simple_plot(df3, name, color, ymin=0, ymax=ymax_monthly, mode=mode, hide_label='collapsed')
+    with c4:
+        st.write(f"**Totalt**")
+        name = 'Totalt'
+        color = '#367061'
+        if mode == 'hourly':
+            show_simple_plot(df3, name, color, ymin=0, ymax=ymax_hourly, mode=mode, hide_label='collapsed')
+        else:
+            show_simple_plot(df3, name, color, ymin=0, ymax=ymax_monthly, mode=mode, hide_label='collapsed')
+
 #######################################
 #######################################
 ymax_hourly = df['Elkjel'].max() * 1.1
@@ -254,39 +300,78 @@ ymax_monthly = np.max(hour_to_month(df['Elkjel'].to_numpy())) * 1.1
 ymin_hourly = np.min(df2['Energibrønner']) * 1.1
 ymin_monthly = np.min(hour_to_month(df2['Energibrønner'].to_numpy())) * 1.1
 
-with st.expander("Energi og effekt"):
-    c1, c2, c3 = st.columns(3)
+with st.expander("Energiløsninger", expanded = True):
+    c1, c2, c3, c4 = st.columns(4)
     with c1:
         name = 'Elkjel'
         color = '#1d3c34'
         st.caption("Alt 1)")
         st.write(f"**Elkjel og solceller**")
+        st.markdown("---")
+        st.write("*Kjøpt strøm fra strømnettet*")
         if mode == 'hourly':
-            show_simple_plot(df, name, color, ymin=0, ymax=ymax_hourly, mode=mode)
+            show_simple_plot(df, name, color, ymin=0, ymax=ymax_hourly, mode=mode, hide_label='collapsed')
             st.markdown("---")
-            show_simple_plot(df2, name, color, ymin=ymin_hourly, ymax=0, mode=mode, type='negative')
+            st.write("*Solgt strøm*")
+            show_simple_plot(df2, name, color, ymin=ymin_hourly, ymax=0, mode=mode, type='negative', hide_label='collapsed')
         else:
-            show_simple_plot(df, name, color, ymin=0, ymax=ymax_monthly, mode=mode)
+            show_simple_plot(df, name, color, ymin=0, ymax=ymax_monthly, mode=mode, hide_label='collapsed')
             st.markdown("---")
-            show_simple_plot(df2, name, color, ymin=ymin_monthly, ymax=0, mode=mode, type='negative')
+            st.write("*Solgt strøm*")
+            show_simple_plot(df2, name, color, ymin=ymin_monthly, ymax=0, mode=mode, type='negative', hide_label='collapsed')
         st.markdown("---")
     with c2:
+        ###
+        name = 'Fjernvarme og sol - strøm'
+        color = '#485738'
         st.caption("Alt 2)")
+        st.write(f"**Fjernvarme og solceller**")
+        st.markdown("---")
+        st.write("*Kjøpt strøm fra strømnettet*")
+        if mode == 'hourly':
+            show_simple_plot(df, name, color, ymin=0, ymax=ymax_hourly, mode=mode, hide_label='collapsed')
+            st.markdown("---")
+            st.write("*Solgt strøm*")
+            show_simple_plot(df2, name, color, ymin=ymin_hourly, ymax=0, mode=mode, type='negative', hide_label='collapsed')
+        else:
+            show_simple_plot(df, name, color, ymin=0, ymax=ymax_monthly, mode=mode, hide_label='collapsed')
+            st.markdown("---")
+            st.write("*Solgt strøm*")
+            show_simple_plot(df2, name, color, ymin=ymin_monthly, ymax=0, mode=mode, type='negative', hide_label='collapsed')
+        st.markdown("---")
+        ###
+        name = 'Fjernvarme og sol - fjernvarme'
+        color = '#485738'
+        st.write("*Kjøpt fjernvarme*")
+        if mode == 'hourly':
+            show_simple_plot(df, name, color, ymin=0, ymax=ymax_hourly, mode=mode, hide_label='collapsed')
+        else:
+            show_simple_plot(df, name, color, ymin=0, ymax=ymax_monthly, mode=mode, hide_label='collapsed')
+        st.markdown("---")
+        ###
+    with c3:
+        st.caption("Alt 3)")
         st.write(f"**Energibrønner og solceller**")
+        st.markdown("---")
+        st.write("*Kjøpt strøm fra strømnettet*")
         name = 'Energibrønner'
         color = '#b7dc8f'
         if mode == 'hourly':
-            show_simple_plot(df, name, color, ymin=0, ymax=ymax_hourly, mode=mode)
+            show_simple_plot(df, name, color, ymin=0, ymax=ymax_hourly, mode=mode, hide_label='collapsed')
             st.markdown("---")
-            show_simple_plot(df2, name, color, ymin=ymin_hourly, ymax=0, mode=mode, type='negative')
+            st.write("*Solgt strøm*")
+            show_simple_plot(df2, name, color, ymin=ymin_hourly, ymax=0, mode=mode, type='negative', hide_label='collapsed')
         else:
-            show_simple_plot(df, name, color, ymin=0, ymax=ymax_monthly, mode=mode)
+            show_simple_plot(df, name, color, ymin=0, ymax=ymax_monthly, mode=mode, hide_label='collapsed')
             st.markdown("---")
-            show_simple_plot(df2, name, color, ymin=ymin_monthly, ymax=0, mode=mode, type='negative')
+            st.write("*Solgt strøm*")
+            show_simple_plot(df2, name, color, ymin=ymin_monthly, ymax=0, mode=mode, type='negative', hide_label='collapsed')
         st.markdown("---")
-    with c3:
-        st.caption("Alt 3)")
+    with c4:
+        st.caption("Alt 4)")
         st.write(f"**GeoTermos og solceller**")
+        st.markdown("---")
+        st.write("*Kjøpt strøm fra strømnettet*")
         #st.caption("Varme fra tørrkjøler eller PVT")
         if calculate_costs_object.selected_mode_charging_in_night:
             name = 'Termos og sol med lading om natten'
@@ -294,13 +379,15 @@ with st.expander("Energi og effekt"):
             name = 'Termos og sol'
         color = '#48a23f'
         if mode == 'hourly':
-            show_simple_plot(df, name, color, ymin=0, ymax=ymax_hourly, mode=mode)
+            show_simple_plot(df, name, color, ymin=0, ymax=ymax_hourly, mode=mode, hide_label='collapsed')
             st.markdown("---")
-            show_simple_plot(df2, name, color, ymin=-ymax_hourly, ymax=0, mode=mode, type='negative')
+            st.write("*Solgt strøm*")
+            show_simple_plot(df2, name, color, ymin=-ymax_hourly, ymax=0, mode=mode, type='negative', hide_label='collapsed')
         else:
-            show_simple_plot(df, name, color, ymin=0, ymax=ymax_monthly, mode=mode)
+            show_simple_plot(df, name, color, ymin=0, ymax=ymax_monthly, mode=mode, hide_label='collapsed')
             st.markdown("---")
-            show_simple_plot(df2, name, color, ymin=ymin_monthly, ymax=0, mode=mode, type='negative')
+            st.write("*Solgt strøm*")
+            show_simple_plot(df2, name, color, ymin=ymin_monthly, ymax=0, mode=mode, type='negative', hide_label='collapsed')
         st.markdown("---")
 
 
@@ -318,10 +405,10 @@ ymax_monthly_co2 = np.max(hour_to_month(df_co2['Elkjel'].to_numpy())) * 1.1
 ymin_hourly_co2 = np.min(df2_co2['Energibrønner']) * 1.1
 ymin_monthly_co2 = np.min(hour_to_month(df2_co2['Energibrønner'].to_numpy())) * 1.1
 
-with st.expander("CO₂ utslipp per år med bruk av strøm", expanded=False):
+with st.expander("CO₂ utslipp per år med bruk av strøm", expanded=True):
     st.caption(f"Forutsetning: CO₂ utslipp med strøm fra {calculate_costs_object.selected_co2}.")
     st.line_chart(df_co2_imported[calculate_costs_object.selected_co2], height=150, use_container_width=True)
-    c1, c2, c3 = st.columns(3)
+    c1, c2, c3, c4 = st.columns(4)
     with c1:
         name = 'Elkjel'
         color = '#1d3c34'
@@ -329,29 +416,44 @@ with st.expander("CO₂ utslipp per år med bruk av strøm", expanded=False):
         st.write(f"**Elkjel og solceller**")
         if mode == 'hourly':
             show_simple_plot(df_co2, name, color, ymin=0, ymax=ymax_hourly_co2, mode=mode, unit="kg CO₂")
-            st.markdown("---")
-            show_simple_plot(df2_co2, name, color, ymin=ymin_hourly_co2, ymax=0, mode=mode, type='negative', unit="kg CO₂")
+#            st.markdown("---")
+#            show_simple_plot(df2_co2, name, color, ymin=ymin_hourly_co2, ymax=0, mode=mode, type='negative', unit="kg CO₂")
         else:
             show_simple_plot(df_co2, name, color, ymin=0, ymax=ymax_monthly_co2, mode=mode, unit="kg CO₂")
-            st.markdown("---")
-            show_simple_plot(df2_co2, name, color, ymin=ymin_monthly_co2, ymax=0, mode=mode, type='negative', unit="kg CO₂")
+#            st.markdown("---")
+#            show_simple_plot(df2_co2, name, color, ymin=ymin_monthly_co2, ymax=0, mode=mode, type='negative', unit="kg CO₂")
         st.markdown("---")
     with c2:
         st.caption("Alt 2)")
+        st.write(f"**Fjernvarme og solceller**")
+        name = 'Fjernvarme og sol - totalt'
+        color = '#485738'
+        if mode == 'hourly':
+            show_simple_plot(df_co2, name, color, ymin=0, ymax=ymax_hourly_co2, mode=mode, unit="kg CO₂")
+#            st.markdown("---")
+#            show_simple_plot(df2_co2, name, color, ymin=ymin_hourly_co2, ymax=0, mode=mode, type='negative', unit="kg CO₂")
+        else:
+            show_simple_plot(df_co2, name, color, ymin=0, ymax=ymax_monthly_co2, mode=mode, unit="kg CO₂")
+#            st.markdown("---")
+#            show_simple_plot(df2_co2, name, color, ymin=ymin_monthly_co2, ymax=0, mode=mode, type='negative', unit="kg CO₂")
+        st.markdown("---")
+        st.warning('Det er gjort en forenkling om at utslippsfaktor for fjernvarme er samme som utslippsfaktor for strøm.')
+    with c3:
+        st.caption("Alt 3)")
         st.write(f"**Energibrønner og solceller**")
         name = 'Energibrønner'
         color = '#b7dc8f'
         if mode == 'hourly':
             show_simple_plot(df_co2, name, color, ymin=0, ymax=ymax_hourly_co2, mode=mode, unit="kg CO₂")
-            st.markdown("---")
-            show_simple_plot(df2_co2, name, color, ymin=ymin_hourly_co2, ymax=0, mode=mode, type='negative', unit="kg CO₂")
+ #           st.markdown("---")
+ #           show_simple_plot(df2_co2, name, color, ymin=ymin_hourly_co2, ymax=0, mode=mode, type='negative', unit="kg CO₂")
         else:
             show_simple_plot(df_co2, name, color, ymin=0, ymax=ymax_monthly_co2, mode=mode, unit="kg CO₂")
-            st.markdown("---")
-            show_simple_plot(df2_co2, name, color, ymin=ymin_monthly_co2, ymax=0, mode=mode, type='negative', unit="kg CO₂")
+#            st.markdown("---")
+#            show_simple_plot(df2_co2, name, color, ymin=ymin_monthly_co2, ymax=0, mode=mode, type='negative', unit="kg CO₂")
         st.markdown("---")
-    with c3:
-        st.caption("Alt 3)")
+    with c4:
+        st.caption("Alt 4)")
         st.write(f"**GeoTermos og solceller**")
         #st.caption("Varme fra tørrkjøler eller PVT")
         if calculate_costs_object.selected_mode_charging_in_night:
@@ -361,20 +463,22 @@ with st.expander("CO₂ utslipp per år med bruk av strøm", expanded=False):
         color = '#48a23f'
         if mode == 'hourly':
             show_simple_plot(df_co2, name, color, ymin=0, ymax=ymax_hourly_co2, mode=mode, unit="kg CO₂")
-            st.markdown("---")
-            show_simple_plot(df2_co2, name, color, ymin=-ymax_hourly_co2, ymax=0, mode=mode, type='negative', unit="kg CO₂")
+#            st.markdown("---")
+#            show_simple_plot(df2_co2, name, color, ymin=-ymax_hourly_co2, ymax=0, mode=mode, type='negative', unit="kg CO₂")
         else:
             show_simple_plot(df_co2, name, color, ymin=0, ymax=ymax_monthly_co2, mode=mode, unit="kg CO₂")
-            st.markdown("---")
-            show_simple_plot(df2_co2, name, color, ymin=ymin_monthly_co2, ymax=0, mode=mode, type='negative', unit="kg CO₂")
+#            st.markdown("---")
+#            show_simple_plot(df2_co2, name, color, ymin=ymin_monthly_co2, ymax=0, mode=mode, type='negative', unit="kg CO₂")
         st.markdown("---")
 
     #######################################
     #######################################
         
 if calculate_costs_object.clicked:
-    c1, c2, c3 = st.columns(3)        
+    c1, c2, c3, c4 = st.columns(4)        
     with c1:
+        st.caption("Alt 1)")
+        st.write(f"**Elkjel og solceller**")
         name = 'Elkjel'
         color = '#1d3c34'
         if mode == 'hourly':
@@ -391,6 +495,21 @@ if calculate_costs_object.clicked:
         total_cost = show_costs_plot(calculate_costs_object, df2, ymin=ymin, ymax=0, type='negative', nettleie_mode=False, mode=mode)
         st.metric(f"Gjennomsnittlig eksportpris", value = f"{abs(round(total_cost/df2[name].sum(),2)):,} kr/kWh".replace(".",","))
     with c2:
+        st.caption("Alt 2)")
+        st.write(f"**Fjernvarme og solceller**")
+        name = 'Fjernvarme og sol - totalt'
+        color = '#485738'
+        calculate_costs_object.forb = df_positive[name].to_numpy()
+        total_cost = show_costs_plot(calculate_costs_object, df, ymin=0, ymax=ymax, mode=mode)
+        st.metric(f"Gjennomsnittlig strømkostnad", value = f"{abs(round(total_cost/df[name].sum(),2)):,} kr/kWh".replace(".",","))
+        st.markdown("---")
+        calculate_costs_object.forb = df2[name].to_numpy()
+        total_cost = show_costs_plot(calculate_costs_object, df2, ymin=ymin, ymax=0, type='negative', nettleie_mode=False, mode=mode)
+        st.metric(f"Gjennomsnittlig eksportpris", value = f"{abs(round(total_cost/df2[name].sum(),2)):,} kr/kWh".replace(".",","))
+        st.warning('Det er gjort en forenkling om at fjernvarmeprisen følger strømprisen.')
+    with c3:
+        st.caption("Alt 3)")
+        st.write(f"**Energibrønner og solceller**")
         name = 'Energibrønner'
         color = '#b7dc8f'
         calculate_costs_object.forb = df_positive[name].to_numpy()
@@ -400,7 +519,9 @@ if calculate_costs_object.clicked:
         calculate_costs_object.forb = df2[name].to_numpy()
         total_cost = show_costs_plot(calculate_costs_object, df2, ymin=ymin, ymax=0, type='negative', nettleie_mode=False, mode=mode)
         st.metric(f"Gjennomsnittlig eksportpris", value = f"{abs(round(total_cost/df2[name].sum(),2)):,} kr/kWh".replace(".",","))
-    with c3:
+    with c4:
+        st.caption("Alt 4)")
+        st.write(f"**GeoTermos og solceller**")
         name = 'Termos og sol'
         color = '#48a23f'
         calculate_costs_object.forb = df_positive[name].to_numpy()
