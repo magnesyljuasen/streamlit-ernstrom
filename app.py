@@ -5,6 +5,9 @@ import numpy as np
 import plotly.graph_objects as go
 from elprice import CalculateCosts
 
+def apply_co2_scaling(row, co2_array, scaling):
+        return row * co2_array[row.name] / scaling
+
 START_INDEX_SUMMER = 2183
 END_INDEX_SUMMER = 6832
 
@@ -348,6 +351,8 @@ with st.expander("Energiløsninger", expanded = True):
         else:
             show_simple_plot(df, name, color, ymin=0, ymax=ymax_monthly, mode=mode, hide_label='collapsed')
         st.markdown("---")
+        st.warning('''Det er gjort en forenkling om at utslippsfaktoren til fjernvarme følger utslippsfaktoren til strøm. 
+                   I virkeligheten vil dette være avhengig av produksjonsmiksen til fjernvarme.''')
         ###
     with c3:
         st.caption("Alt 3)")
@@ -393,13 +398,22 @@ with st.expander("Energiløsninger", expanded = True):
 
 #######################################
 #######################################
+SCALE_FACTOR_DISTRICT_HEATING = calculate_costs_object.DISTRICT_HEATING_CO2
+
 df_co2 = df.copy()
 df2_co2 = df2.copy()
 df_co2_imported = pd.read_excel('src/CO2.xlsx')
 scaling = 1000 # kg
 co2_array = np.array(list(df_co2_imported[calculate_costs_object.selected_co2]))
-df_co2 = df_co2.apply(lambda row: row * co2_array[row.name]/scaling, axis=1) 
-df2_co2 = df2_co2.apply(lambda row: row * co2_array[row.name]/scaling, axis=1)
+district_heating_co2_array = co2_array * SCALE_FACTOR_DISTRICT_HEATING
+electric_columns = ['Termos og sol', 'Elkjel', 'Energibrønner', 'Termos og sol med lading om natten', 'Fjernvarme og sol - strøm']
+district_heating_columns = ['Fjernvarme og sol - fjernvarme']
+
+df_co2[electric_columns] = df_co2[electric_columns].apply(lambda row: apply_co2_scaling(row, co2_array, scaling), axis=1)
+df2_co2[electric_columns] = df2_co2[electric_columns].apply(lambda row: apply_co2_scaling(row, co2_array, scaling), axis=1)
+df_co2[district_heating_columns] = df_co2[district_heating_columns].apply(lambda row: apply_co2_scaling(row, district_heating_co2_array, scaling), axis=1)
+df_co2['Fjernvarme og sol - totalt'] = df_co2['Fjernvarme og sol - strøm'] + df_co2['Fjernvarme og sol - fjernvarme']
+
 ymax_hourly_co2 = df_co2['Elkjel'].max() * 1.1
 ymax_monthly_co2 = np.max(hour_to_month(df_co2['Elkjel'].to_numpy())) * 1.1
 ymin_hourly_co2 = np.min(df2_co2['Energibrønner']) * 1.1
@@ -437,7 +451,6 @@ with st.expander("CO₂ utslipp per år med bruk av strøm", expanded=True):
 #            st.markdown("---")
 #            show_simple_plot(df2_co2, name, color, ymin=ymin_monthly_co2, ymax=0, mode=mode, type='negative', unit="kg CO₂")
         st.markdown("---")
-        st.warning('Det er gjort en forenkling om at utslippsfaktor for fjernvarme er samme som utslippsfaktor for strøm.')
     with c3:
         st.caption("Alt 3)")
         st.write(f"**Energibrønner og solceller**")
@@ -506,7 +519,8 @@ if calculate_costs_object.clicked:
         calculate_costs_object.forb = df2[name].to_numpy()
         total_cost = show_costs_plot(calculate_costs_object, df2, ymin=ymin, ymax=0, type='negative', nettleie_mode=False, mode=mode)
         st.metric(f"Gjennomsnittlig eksportpris", value = f"{abs(round(total_cost/df2[name].sum(),2)):,} kr/kWh".replace(".",","))
-        st.warning('Det er gjort en forenkling om at fjernvarmeprisen følger strømprisen.')
+        st.warning('''Det er gjort en forenkling om at fjernvarmeprisen følger strømprisen som er noenlunde sant i Norge. 
+                   Det er lagt til rette for videre implementasjon av modeller for fjernvarmepris.''')
     with c3:
         st.caption("Alt 3)")
         st.write(f"**Energibrønner og solceller**")

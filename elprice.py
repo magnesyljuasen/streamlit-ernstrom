@@ -32,6 +32,7 @@ class CalculateCosts:
             else:
                 self.selected_mode_charging_in_night = False
             self.selected_co2 = st.selectbox("CO₂-ekv", options=["Sverige", "Tyskland", "Norge"])
+            self.DISTRICT_HEATING_CO2 = st.number_input("(CO₂-ekv fjernvarme)/(CO₂-ekv strøm)", value=1.0, step=0.1)
             nettleie_provider = st.selectbox("Nettleieselskap", options=["Tensio", "Tensio fremtidig", "Ingen nettleie"])
             if nettleie_provider == "Tensio":
                 filename = "src/Prissatser_nettleie_Tensio.xlsx"
