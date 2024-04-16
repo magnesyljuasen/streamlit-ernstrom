@@ -261,7 +261,7 @@ ymax_monthly = np.max(hour_to_month(df3['Totalt'].to_numpy())) * 1.1
 ymin_hourly = 0
 ymin_monthly = 0
 
-with st.expander("Energi- og effektbehov til bygget", expanded=True):
+with st.expander("Energi- og effektbehov til bygget", expanded=False):
     c1, c2, c3, c4 = st.columns(4)
     with c1:
         name = 'Elektrisk'
@@ -303,7 +303,7 @@ ymax_monthly = np.max(hour_to_month(df['Elkjel'].to_numpy())) * 1.1
 ymin_hourly = np.min(df2['Energibrønner']) * 1.1
 ymin_monthly = np.min(hour_to_month(df2['Energibrønner'].to_numpy())) * 1.1
 
-with st.expander("Energiløsninger", expanded = True):
+with st.expander("Energiløsninger", expanded = False):
     c1, c2, c3, c4 = st.columns(4)
     with c1:
         name = 'Elkjel'
@@ -351,7 +351,8 @@ with st.expander("Energiløsninger", expanded = True):
         else:
             show_simple_plot(df, name, color, ymin=0, ymax=ymax_monthly, mode=mode, hide_label='collapsed')
         st.markdown("---")
-        st.warning('''Det er gjort en forenkling om at utslippsfaktoren til fjernvarme følger utslippsfaktoren til strøm. 
+        with st.popover('Forenkling', use_container_width=True):
+            st.write('''Det er gjort en forenkling om at utslippsfaktoren til fjernvarme følger utslippsfaktoren til strøm. 
                    I virkeligheten vil dette være avhengig av produksjonsmiksen til fjernvarme.''')
         ###
     with c3:
@@ -419,7 +420,7 @@ ymax_monthly_co2 = np.max(hour_to_month(df_co2['Elkjel'].to_numpy())) * 1.1
 ymin_hourly_co2 = np.min(df2_co2['Energibrønner']) * 1.1
 ymin_monthly_co2 = np.min(hour_to_month(df2_co2['Energibrønner'].to_numpy())) * 1.1
 
-with st.expander("CO₂ utslipp per år med bruk av strøm", expanded=True):
+with st.expander("CO₂ utslipp per år med bruk av strøm", expanded=False):
     st.caption(f"Forutsetning: CO₂ utslipp med strøm fra {calculate_costs_object.selected_co2}.")
     st.line_chart(df_co2_imported[calculate_costs_object.selected_co2], height=150, use_container_width=True)
     c1, c2, c3, c4 = st.columns(4)
@@ -487,7 +488,7 @@ with st.expander("CO₂ utslipp per år med bruk av strøm", expanded=True):
     #######################################
     #######################################
         
-if calculate_costs_object.clicked:
+with st.expander("Kostnader", expanded=False):
     c1, c2, c3, c4 = st.columns(4)        
     with c1:
         st.caption("Alt 1)")
@@ -519,7 +520,8 @@ if calculate_costs_object.clicked:
         calculate_costs_object.forb = df2[name].to_numpy()
         total_cost = show_costs_plot(calculate_costs_object, df2, ymin=ymin, ymax=0, type='negative', nettleie_mode=False, mode=mode)
         st.metric(f"Gjennomsnittlig eksportpris", value = f"{abs(round(total_cost/df2[name].sum(),2)):,} kr/kWh".replace(".",","))
-        st.warning('''Det er gjort en forenkling om at fjernvarmeprisen følger strømprisen som er noenlunde sant i Norge. 
+        with st.popover('Forenkling', use_container_width=True):
+            st.write('''Det er gjort en forenkling om at fjernvarmeprisen følger strømprisen som er noenlunde sant i Norge. 
                    Det er lagt til rette for videre implementasjon av modeller for fjernvarmepris.''')
     with c3:
         st.caption("Alt 3)")
