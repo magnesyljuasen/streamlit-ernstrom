@@ -5,6 +5,28 @@ import numpy as np
 import plotly.graph_objects as go
 from elprice import CalculateCosts
 
+@st.cache_resource(show_spinner=False)
+def read_excel_1(sheet_name):
+    df = pd.read_excel('src/svenske_fjernvarmepriser.xlsx', sheet_name=sheet_name, skiprows=4)
+    return df
+
+@st.cache_resource(show_spinner=False)
+def read_df_co2():
+    df_co2_imported = pd.read_excel('src/CO2.xlsx')
+    return df_co2_imported
+
+
+def get_districtheating_price_sweden():
+    sheet_name = st.selectbox('Velg pristype', options=['Nils Holgersson', 'Flerbostadshus', 'Småhus'])
+    df = read_excel_1(sheet_name)
+    foretak = st.selectbox('Foretak', options=df['Företag'].unique())
+    df = df[df['Företag'] == foretak]
+    nat = st.selectbox('Nät', options=df['Nät'].unique())
+    df = df[df['Nät'] == nat]
+    year = st.selectbox('År', options=['2022', '2023'], index=1)
+    price = float(df[year])
+    return price
+
 def apply_co2_scaling(row, co2_array, scaling):
         return row * co2_array[row.name] / scaling
 
@@ -69,7 +91,7 @@ def conditional_sum(array, mode = 'above'):
                 new_array.append(0)
     return int(round(sum(new_array),0))
 
-st.cache_resource(show_spinner=False)
+@st.cache_resource(show_spinner=False)
 def read_df(sheet_name="Sheet1"):
     df = pd.read_excel("src/GeoTermosEksempel.xlsx", sheet_name=sheet_name)
     return df
@@ -129,12 +151,12 @@ def show_simple_plot(df, name, color='#1d3c34', ymin=0, ymax=1000, mode='hourly'
         winter_sum, summer_sum, winter_max, summer_max = get_winter_summer_parameters(array = array, mode = mode)
         c1, c2 = st.columns(2)
         with c1:
-            st.caption("Om vinteren")
+            st.caption("Vinter")
             st.metric(label="Vinter", value=f"{winter_sum:,} {unit}".replace(",", " "), label_visibility="collapsed")
             if winter_max > 0 and unit != 'kg CO₂':
-                st.metric(label="Vintereffekt", value=f"{winter_max:,} {unit[0:2]}".replace(",", " "), label_visibility="collapsed")
+                st.metric(label="vintereffekt", value=f"{winter_max:,} {unit[0:2]}".replace(",", " "), label_visibility="collapsed")
         with c2:
-            st.caption("Om sommeren")
+            st.caption("Sommer")
             st.metric(label="Sommer", value=f"{summer_sum:,} {unit}".replace(",", " "), label_visibility="collapsed")
             if summer_max > 0 and unit != 'kg CO₂':
                 st.metric(label="Sommer", value=f"{summer_max:,} {unit[0:2]}".replace(",", " "), label_visibility="collapsed")       
@@ -143,7 +165,7 @@ def show_simple_plot(df, name, color='#1d3c34', ymin=0, ymax=1000, mode='hourly'
     #st.metric(label="Balanse", value=f"{above_sum - below_sum:,} kWh".replace(",", " "))
     return above_sum
 
-def show_costs_plot(calculate_costs_object, df, ymin=None, ymax=None, mode='hourly', type='positive', nettleie_mode=True, reference_value = None):
+def show_costs_plot(calculate_costs_object, df, ymin=None, ymax=None, mode='hourly', type='positive', nettleie_mode=True, reference_value = None, fjernvarme_cost = np.zeros(4000)):
     if type == 'positive':
         height = 200
     else:
@@ -164,17 +186,20 @@ def show_costs_plot(calculate_costs_object, df, ymin=None, ymax=None, mode='hour
     if nettleie_mode == True:
         df = pd.DataFrame({
             'Nettleie': nettleie, 
-            'Spotpris' : calculate_costs_object.spot_time
+            'Spot' : calculate_costs_object.spot_time
             })
     else:
         df = pd.DataFrame({
-            'Spotpris' : calculate_costs_object.spot_time
+            'Spot' : calculate_costs_object.spot_time
             })
+    if len(fjernvarme_cost) != 4000:
+        df['Fjernvarme'] = fjernvarme_cost
+
     if mode == 'hourly':
         fig = go.Figure()
         for col in df.columns[:-1]:
             fig.add_trace(go.Bar(x=df.index, y=df[col], name=col))
-        fig.add_trace(go.Bar(x=df.index, y=df['Spotpris'], name='Spotpris'))
+        fig.add_trace(go.Bar(x=df.index, y=df['Spot'], name='Spot'))
         fig.update_layout(
             yaxis=dict(tickformat=',d'),
             yaxis_ticksuffix=" kr",
@@ -197,9 +222,9 @@ def show_costs_plot(calculate_costs_object, df, ymin=None, ymax=None, mode='hour
     else:
         months = ['jan', 'feb', 'mar', 'apr', 'mai', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'des']
         fig = go.Figure()
-        for col in df.columns[:-1]:
+        for col in df.columns:
             fig.add_trace(go.Bar(x=months, y=hour_to_month(df[col]), name=col))
-        fig.add_trace(go.Bar(x=months, y=hour_to_month(df['Spotpris']), name='Spotpris'))
+        #fig.add_trace(go.Bar(x=months, y=hour_to_month(df['Spotkostnad']), name='Spotkostnad'))
         fig.update_layout(
             yaxis=dict(tickformat=',d'),
             yaxis_ticksuffix=" kr",
@@ -212,9 +237,13 @@ def show_costs_plot(calculate_costs_object, df, ymin=None, ymax=None, mode='hour
             height=height)
         st.plotly_chart(fig, use_container_width=True, config = {'displayModeBar': False, 'staticPlot': True})
     if nettleie_mode == True:
-        total_array = df['Nettleie'] + df['Spotpris']
+        total_array = df['Nettleie'] + df['Spot']
     else:
-        total_array = df['Spotpris']
+        total_array = df['Spot']
+    
+    if len(fjernvarme_cost) != 4000:
+        total_array = total_array + fjernvarme_cost
+    
     above_sum = conditional_sum(array=total_array, mode='above')
     below_sum = -conditional_sum(array=total_array, mode='below')
     if reference_value == None:
@@ -230,7 +259,6 @@ def show_costs_plot(calculate_costs_object, df, ymin=None, ymax=None, mode='hour
         return int(below_sum)
     
 
-
 st.set_page_config(
     page_title="GeoTermos",
     layout="wide",
@@ -239,6 +267,17 @@ st.set_page_config(
 
 with open("styles/with_columns.css") as f:
     st.markdown("<style>{}</style>".format(f.read()), unsafe_allow_html=True)
+
+st.markdown(
+    """
+<style>
+[data-testid="stMetricValue"] {
+    font-size: large;
+}
+</style>
+""",
+    unsafe_allow_html=True,
+)
 
 st.title("GeoTermos - regneeksempel")
 st.success("Endre forutsetningene for beregningene i menyen til venstre", icon="ℹ️")
@@ -259,6 +298,8 @@ with st.sidebar:
 #        mode='måned'
 #    else:
 #        mode='hourly'
+    with st.expander('Fjernvarmepris', expanded=True):
+        districtheating_price_sweden = get_districtheating_price_sweden()
     calculate_costs_object.streamlit_input()
 calculate_costs_object.bestem_prissatser()
 calculate_costs_object.dager_i_hver_mnd()
@@ -314,7 +355,7 @@ with st.expander("Energi- og effektbehov til bygget", expanded=False):
             show_simple_plot(df3, name, color, ymin=0, ymax=ymax_monthly, mode=mode, hide_label='collapsed')
     
     st.info(''' 💡 Det elspesifike behovet og tappevannsbehovet er nokså jevnt hele året - det er ingen store sesongvariasjoner. 
-            Romoppvarmingsbehovet varierer med utetemperaturen og er mye høyere om vinteren enn sommeren.''')
+            Romoppvarmingsbehovet varierer med utetemperaturen og er mye høyere vinter enn sommeren.''')
 
 #######################################
 #######################################
@@ -424,11 +465,11 @@ with st.expander("Energiløsninger", expanded = False):
             bruke mer strøm enn 3) Energibrønner og solceller. 
             Det er viktig å ta i betraktning **når** man 
             bruker strømmen - her ser vi at GeoTermos bruker mindre 
-            strøm om vinteren enn om sommeren.''')
+            strøm vinter enn sommer.''')
     st.info(''' ❔ Lastprofilet til GeoTermos er veldig ulik de andre profilene. 
             Dette er fordi vi flytter last fra vinter til sommer. Dette vil være 
-            gunstig med tanke på trendene med økt press på strømnettet om vinteren og derav
-            mer varierende strømpriser med billigere priser om sommeren.''')
+            gunstig med tanke på trendene med økt press på strømnettet vinter og derav
+            mer varierende strømpriser med billigere priser sommer.''')
 
 #######################################
 #######################################
@@ -436,7 +477,7 @@ SCALE_FACTOR_DISTRICT_HEATING = calculate_costs_object.DISTRICT_HEATING_CO2
 
 df_co2 = df.copy()
 df2_co2 = df2.copy()
-df_co2_imported = pd.read_excel('src/CO2.xlsx')
+df_co2_imported = read_df_co2()
 scaling = 1000 # kg
 co2_array = np.array(list(df_co2_imported[calculate_costs_object.selected_co2]))
 district_heating_co2_array = co2_array * SCALE_FACTOR_DISTRICT_HEATING
@@ -541,26 +582,23 @@ with st.expander("Kostnader", expanded=False):
         calculate_costs_object.forb = df_positive[name].to_numpy()
         total_cost = show_costs_plot(calculate_costs_object, df, ymin=0, ymax=ymax, mode=mode)
         reference_cost = total_cost
-        st.caption(f"Gjennomsnittlig strømkostnad {abs(round(total_cost/df[name].sum(),2)):,} kr/kWh".replace(".",","))
+        #st.caption(f"Gjennomsnittlig strømkostnad {abs(round(total_cost/df[name].sum(),2)):,} kr/kWh".replace(".",","))
         st.markdown("---")
         calculate_costs_object.forb = df2[name].to_numpy()
         total_cost = show_costs_plot(calculate_costs_object, df2, ymin=ymin, ymax=0, type='negative', nettleie_mode=False, mode=mode)
-        st.caption(f"Gjennomsnittlig eksportpris for strøm {abs(round(total_cost/df2[name].sum(),2)):,} kr/kWh".replace(".",","))
+        #st.caption(f"Gjennomsnittlig eksportpris for strøm {abs(round(total_cost/df2[name].sum(),2)):,} kr/kWh".replace(".",","))
     with c2:
         st.caption("Alt 2)")
         st.write(f"**Fjernvarme og solceller**")
-        name = 'Fjernvarme og sol - totalt'
+        name = 'Fjernvarme og sol - strøm'
         color = '#485738'
         calculate_costs_object.forb = df_positive[name].to_numpy()
-        total_cost = show_costs_plot(calculate_costs_object, df, ymin=0, ymax=ymax, mode=mode, reference_value=reference_cost)
-        st.caption(f"Gjennomsnittlig strømkostnad {abs(round(total_cost/df[name].sum(),2)):,} kr/kWh".replace(".",","))
+        total_cost = show_costs_plot(calculate_costs_object, df, ymin=0, ymax=ymax, mode=mode, reference_value=reference_cost, fjernvarme_cost=df_positive['Fjernvarme og sol - fjernvarme'] * districtheating_price_sweden/1000)
+        #st.caption(f"Gjennomsnittlig strømkostnad {abs(round(total_cost/(df[name] + df['Fjernvarme og sol - fjernvarme']).sum(),2)):,} kr/kWh".replace(".",","))
         st.markdown("---")
         calculate_costs_object.forb = df2[name].to_numpy()
         total_cost = show_costs_plot(calculate_costs_object, df2, ymin=ymin, ymax=0, type='negative', nettleie_mode=False, mode=mode)
-        st.caption(f"Gjennomsnittlig eksportpris for strøm {abs(round(total_cost/df2[name].sum(),2)):,} kr/kWh".replace(".",","))
-        with st.popover('Forenkling', use_container_width=True):
-            st.write('''Det er gjort en forenkling om at fjernvarmeprisen følger strømprisen som er noenlunde sant i Norge. 
-                   Det er lagt til rette for videre implementasjon av modeller for fjernvarmepris.''')
+        #st.caption(f"Gjennomsnittlig eksportpris for strøm {abs(round(total_cost/df2[name].sum(),2)):,} kr/kWh".replace(".",","))
     with c3:
         st.caption("Alt 3)")
         st.write(f"**Energibrønner og solceller**")
@@ -568,11 +606,11 @@ with st.expander("Kostnader", expanded=False):
         color = '#b7dc8f'
         calculate_costs_object.forb = df_positive[name].to_numpy()
         total_cost = show_costs_plot(calculate_costs_object, df, ymin=0, ymax=ymax, mode=mode, reference_value=reference_cost)
-        st.caption(f"Gjennomsnittlig strømkostnad {abs(round(total_cost/df[name].sum(),2)):,} kr/kWh".replace(".",","))
+        #st.caption(f"Gjennomsnittlig strømkostnad {abs(round(total_cost/df[name].sum(),2)):,} kr/kWh".replace(".",","))
         st.markdown("---")
         calculate_costs_object.forb = df2[name].to_numpy()
         total_cost = show_costs_plot(calculate_costs_object, df2, ymin=ymin, ymax=0, type='negative', nettleie_mode=False, mode=mode)
-        st.caption(f"Gjennomsnittlig eksportpris for strøm {abs(round(total_cost/df2[name].sum(),2)):,} kr/kWh".replace(".",","))
+        #st.caption(f"Gjennomsnittlig eksportpris for strøm {abs(round(total_cost/df2[name].sum(),2)):,} kr/kWh".replace(".",","))
     with c4:
         st.caption("Alt 4)")
         st.write(f"**GeoTermos og solceller**")
@@ -580,16 +618,16 @@ with st.expander("Kostnader", expanded=False):
         color = '#48a23f'
         calculate_costs_object.forb = df_positive[name].to_numpy()
         total_cost = show_costs_plot(calculate_costs_object, df, ymin=0, ymax=ymax, mode=mode, reference_value=reference_cost)
-        st.caption(f"Gjennomsnittlig strømkostnad {abs(round(total_cost/df[name].sum(),2)):,} kr/kWh".replace(".",","))
+        #st.caption(f"Gjennomsnittlig strømkostnad {abs(round(total_cost/df[name].sum(),2)):,} kr/kWh".replace(".",","))
         st.markdown("---")
         calculate_costs_object.forb = df2[name].to_numpy()
         total_cost = show_costs_plot(calculate_costs_object, df2, ymin=ymin, ymax=0, type='negative', nettleie_mode=False, mode=mode)
-        st.caption(f"Gjennomsnittlig eksportpris for strøm {abs(round(total_cost/df2[name].sum(),2)):,} kr/kWh".replace(".",","))
+        #st.caption(f"Gjennomsnittlig eksportpris for strøm {abs(round(total_cost/df2[name].sum(),2)):,} kr/kWh".replace(".",","))
 
     st.info(''' 💡 Ettersom lastprofilet til GeoTermos er veldig ulik de andre profilene 
             (vi flytter last fra vinter til sommer) vil GeoTermos være gunstig med tanke på 
-            trendene med økt press på strømnettet om vinteren og derav
-            mer varierende strømpriser med billigere priser om sommeren. Med sesongvarierende strømpriser 
+            trendene med økt press på strømnettet vinter og derav
+            mer varierende strømpriser med billigere priser sommer. Med sesongvarierende strømpriser 
             og økt nettleie ved høye effekttopper ser vi at GeoTermos er lønnsomt.''')
     #######################################
     #######################################

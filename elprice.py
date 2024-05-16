@@ -24,38 +24,42 @@ class CalculateCosts:
 
     def streamlit_input(self):
         with st.form(key="myform", border=False):
-#            c1, c2, c3 = st.columns(3)
-#            with c1:
-            selected_mode_charging_in_night = st.selectbox("Optimalisere GeoTermos - kjøre varmepumpa når sola skinner", options = ['Ja', 'Nei'])
-            if selected_mode_charging_in_night == 'Ja':
-                self.selected_mode_charging_in_night = True
-            else:
-                self.selected_mode_charging_in_night = False
-            self.selected_co2 = st.selectbox("CO₂-ekv", options=["Sverige", "Tyskland", "Norge"])
-            self.DISTRICT_HEATING_CO2 = st.number_input("(CO₂-ekv fjernvarme)/(CO₂-ekv strøm)", value=0.7, step=0.1)
-            nettleie_provider = st.selectbox("Nettleieselskap", options=["Tensio", "Tensio fremtidig", "Ingen nettleie"])
-            if nettleie_provider == "Tensio":
-                filename = "src/Prissatser_nettleie_Tensio.xlsx"
-            elif nettleie_provider == "Tensio fremtidig":
-                filename = "src/Prissatser_nettleie_Tensio_fremtidig.xlsx"
-            elif nettleie_provider == "Ingen nettleie":
-                filename = "src/Prissatser_nettleie_ingen_nettleie.xlsx"
-            self.spotprisfil_aar = st.selectbox(label='Årstall for spotpriser',options=['2 kr/kWh om vinteren og 0,2 kr/kWh om sommeren', '3 kr/kWh om vinteren og 0,5 kr/kWh om sommeren', '2023', '2022', '2021', '2020'],index=0)
-            if self.spotprisfil_aar == '3 kr/kWh om vinteren og 0,5 kr/kWh om sommeren':
-                self.spotprisfil_aar = 'Fremtidig'
-            elif self.spotprisfil_aar == '2 kr/kWh om vinteren og 0,2 kr/kWh om sommeren':
-                self.spotprisfil_aar = 'Fremtidig_2'
-#            with c2:
-            self.prissats_filnavn = filename
-            self.type_kunde = st.selectbox(label='Type strømkunde',options=['Privatkunde', 'Mindre næringskunde', 'Større næringskunde'],index=1)
-            self.sone = st.selectbox(label='Prisområde',options=['NO1','NO2','NO3','NO4','NO5'],index=0)            
-#            with c3:
-            self.paaslag = st.number_input(label='Påslag spotpris (kr/kWh)', value=0.00, step=0.01)
-            mva = st.selectbox(label='Priser inkludert mva.', options=["Ja", "Nei"], index=1)
-            if mva == "Ja":
-                self.mva = True
-            else:
-                self.mva = False
+            with st.expander('Strømpris', expanded=True):
+                nettleie_provider = st.selectbox("Nettleieselskap", options=["Tensio", "Tensio fremtidig", "Ingen nettleie"])
+                if nettleie_provider == "Tensio":
+                    filename = "src/Prissatser_nettleie_Tensio.xlsx"
+                elif nettleie_provider == "Tensio fremtidig":
+                    filename = "src/Prissatser_nettleie_Tensio_fremtidig.xlsx"
+                elif nettleie_provider == "Ingen nettleie":
+                    filename = "src/Prissatser_nettleie_ingen_nettleie.xlsx"
+                self.spotprisfil_aar = st.selectbox(label='Årstall for spotpriser',options=['2 kr/kWh om vinteren og 0,2 kr/kWh om sommeren', '3 kr/kWh om vinteren og 0,5 kr/kWh om sommeren', '2023', '2022', '2021', '2020'],index=0)
+                if self.spotprisfil_aar == '3 kr/kWh om vinteren og 0,5 kr/kWh om sommeren':
+                    self.spotprisfil_aar = 'Fremtidig'
+                elif self.spotprisfil_aar == '2 kr/kWh om vinteren og 0,2 kr/kWh om sommeren':
+                    self.spotprisfil_aar = 'Fremtidig_2'
+    #            with c2:
+                self.prissats_filnavn = filename
+                self.type_kunde = st.selectbox(label='Type strømkunde',options=['Privatkunde', 'Mindre næringskunde', 'Større næringskunde'],index=1)
+                self.sone = st.selectbox(label='Prisområde',options=['NO1','NO2','NO3','NO4','NO5'],index=0)            
+    #            with c3:
+                self.paaslag = st.number_input(label='Påslag spotpris (kr/kWh)', value=0.00, step=0.01)
+                mva = st.selectbox(label='Priser inkludert mva.', options=["Ja", "Nei"], index=1)
+                if mva == "Ja":
+                    self.mva = True
+                else:
+                    self.mva = False
+            with st.expander('Utslippsfaktor', expanded=True):
+                self.selected_co2 = st.selectbox("CO₂-ekv", options=["Sverige", "Tyskland", "Norge"])
+                self.DISTRICT_HEATING_CO2 = st.number_input("(CO₂-ekv fjernvarme)/(CO₂-ekv strøm)", value=0.7, step=0.1)
+
+            with st.expander('Andre'):
+                selected_mode_charging_in_night = st.selectbox("Optimalisere GeoTermos - kjøre varmepumpa når sola skinner", options = ['Ja', 'Nei'])
+                if selected_mode_charging_in_night == 'Ja':
+                    self.selected_mode_charging_in_night = True
+                else:
+                    self.selected_mode_charging_in_night = False
+            
+            
             self.clicked = st.form_submit_button(label='Oppdater beregning')
         self.clicked = True
                 
